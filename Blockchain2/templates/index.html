@@ -1,0 +1,633 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🔗 Blockchain Dashboard</title>
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body class="bg-gray-900 text-white">
+    <div id="app" class="min-h-screen">
+        <header class="bg-gray-800 shadow-lg">
+            <div class="container mx-auto px-6 py-4">
+                <h1 class="text-3xl font-bold">🔗 Blockchain Dashboard</h1>
+                <p class="text-gray-300">Dynamic Web Interface for Blockchain Management</p>
+            </div>
+        </header>
+
+        <main class="container mx-auto px-6 py-8">
+            <!-- Status Section -->
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+                <div class="bg-gray-800 rounded-lg p-6">
+                    <div class="flex items-center">
+                        <i class="fas fa-cube text-blue-400 text-2xl mr-3"></i>
+                        <div>
+                            <p class="text-sm text-gray-400">Block Height</p>
+                            <p class="text-2xl font-bold">{{ info.height || 'N/A' }}</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="bg-gray-800 rounded-lg p-6">
+                    <div class="flex items-center">
+                        <i class="fas fa-link text-green-400 text-2xl mr-3"></i>
+                        <div>
+                            <p class="text-sm text-gray-400">Total Blocks</p>
+                            <p class="text-2xl font-bold">{{ info.blocks_count || 0 }}</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="bg-gray-800 rounded-lg p-6">
+                    <div class="flex items-center">
+                        <i class="fas fa-clock text-yellow-400 text-2xl mr-3"></i>
+                        <div>
+                            <p class="text-sm text-gray-400">Pending TXs</p>
+                            <p class="text-2xl font-bold">{{ info.mempool_size || 0 }}</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="bg-gray-800 rounded-lg p-6">
+                    <div class="flex items-center">
+                        <i class="fas fa-tachometer-alt text-red-400 text-2xl mr-3"></i>
+                        <div>
+                            <p class="text-sm text-gray-400">Difficulty</p>
+                            <p class="text-2xl font-bold">{{ info.difficulty || 'N/A' }}</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Action Tabs -->
+            <div class="mb-8">
+                <nav class="flex space-x-1 bg-gray-800 rounded-lg p-1">
+                    <button v-for="tab in tabs" :key="tab.id" 
+                            @click="activeTab = tab.id"
+                            :class="['px-4 py-2 rounded-md font-medium transition-colors', 
+                                   activeTab === tab.id ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white']">
+                        <i :class="tab.icon"></i> {{ tab.name }}
+                    </button>
+                </nav>
+            </div>
+
+            <!-- Tab Content -->
+            <div class="bg-gray-800 rounded-lg p-6">
+                <!-- Dashboard Tab -->
+                <div v-if="activeTab === 'dashboard'">
+                    <h2 class="text-xl font-bold mb-4">Blockchain Overview</h2>
+                    
+                    <div v-if="!info.height" class="text-center py-12">
+                        <i class="fas fa-exclamation-triangle text-yellow-400 text-4xl mb-4"></i>
+                        <h3 class="text-xl mb-4">Blockchain Not Initialized</h3>
+                        <p class="text-gray-400 mb-6">Create a wallet first, then initialize the blockchain</p>
+                    </div>
+                    
+                    <div v-else>
+                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                            <div class="bg-gray-700 rounded-lg p-4">
+                                <h3 class="font-bold mb-2">Latest Block</h3>
+                                <div v-if="info.latest_block">
+                                    <p><strong>Hash:</strong> {{ info.latest_block.hash.substring(0, 16) }}...</p>
+                                    <p><strong>Height:</strong> {{ info.latest_block.height }}</p>
+                                    <p><strong>Time:</strong> {{ info.latest_block.timestamp_str }}</p>
+                                    <p><strong>Transactions:</strong> {{ info.latest_block.transactions.length }}</p>
+                                </div>
+                            </div>
+                            
+                            <div class="bg-gray-700 rounded-lg p-4">
+                                <h3 class="font-bold mb-2">Network Status</h3>
+                                <p><strong>Status:</strong> <span class="text-green-400">Active</span></p>
+                                <p><strong>Consensus:</strong> Proof of Work</p>
+                                <p><strong>Current Difficulty:</strong> {{ info.difficulty }}</p>
+                            </div>
+                        </div>
+                        
+                        <div class="mt-6">
+                            <button @click="validateChain" 
+                                    class="bg-green-600 hover:bg-green-700 px-4 py-2 rounded-lg mr-3">
+                                <i class="fas fa-check-circle"></i> Validate Chain
+                            </button>
+                            <button @click="refreshData" 
+                                    class="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg">
+                                <i class="fas fa-sync"></i> Refresh
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Wallets Tab -->
+                <div v-if="activeTab === 'wallets'">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-xl font-bold">Wallet Management</h2>
+                        <button @click="createWallet" 
+                                class="bg-green-600 hover:bg-green-700 px-4 py-2 rounded-lg">
+                            <i class="fas fa-plus"></i> Create Wallet
+                        </button>
+                    </div>
+                    
+                    <div v-if="wallets.length === 0" class="text-center py-8 text-gray-400">
+                        <i class="fas fa-wallet text-3xl mb-3"></i>
+                        <p>No wallets found. Create one to get started!</p>
+                    </div>
+                    
+                    <div v-else class="space-y-3">
+                        <div v-for="wallet in wallets" :key="wallet.address" 
+                             class="bg-gray-700 rounded-lg p-4 flex justify-between items-center">
+                            <div>
+                                <p class="font-mono text-sm">{{ wallet.address }}</p>
+                                <p class="text-green-400 font-bold">{{ wallet.balance }} coins</p>
+                            </div>
+                            <div class="space-x-2">
+                                <button @click="selectWallet(wallet.address)" 
+                                        class="bg-blue-600 hover:bg-blue-700 px-3 py-1 rounded text-sm">
+                                    Select
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div v-if="wallets.length > 0 && !info.height" class="mt-6 text-center">
+                        <button @click="initBlockchain" 
+                                class="bg-purple-600 hover:bg-purple-700 px-6 py-3 rounded-lg text-lg">
+                            <i class="fas fa-rocket"></i> Initialize Blockchain
+                        </button>
+                        <p class="text-sm text-gray-400 mt-2">Use selected wallet for genesis block</p>
+                    </div>
+                </div>
+
+                <!-- Transactions Tab -->
+                <div v-if="activeTab === 'transactions'">
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <!-- Send Transaction -->
+                        <div>
+                            <h3 class="text-lg font-bold mb-4">Send Transaction</h3>
+                            <form @submit.prevent="sendTransaction" class="space-y-4">
+                                <div>
+                                    <label class="block text-sm font-medium mb-1">From Address</label>
+                                    <select v-model="txForm.from" class="w-full bg-gray-700 rounded-lg px-3 py-2">
+                                        <option value="">Select sender...</option>
+                                        <option v-for="wallet in wallets" :key="wallet.address" :value="wallet.address">
+                                            {{ wallet.address }} ({{ wallet.balance }} coins)
+                                        </option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium mb-1">To Address</label>
+                                    <select v-model="txForm.to" class="w-full bg-gray-700 rounded-lg px-3 py-2">
+                                        <option value="">Select recipient...</option>
+                                        <option v-for="wallet in wallets" :key="wallet.address" :value="wallet.address">
+                                            {{ wallet.address }}
+                                        </option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium mb-1">Amount</label>
+                                    <input v-model="txForm.amount" type="number" min="1" 
+                                           class="w-full bg-gray-700 rounded-lg px-3 py-2" placeholder="Amount to send">
+                                </div>
+                                <button type="submit" 
+                                        class="w-full bg-blue-600 hover:bg-blue-700 py-2 rounded-lg">
+                                    <i class="fas fa-paper-plane"></i> Add to Mempool
+                                </button>
+                            </form>
+                        </div>
+                        
+                        <!-- Mempool -->
+                        <div>
+                            <h3 class="text-lg font-bold mb-4">
+                                Mempool 
+                                <span class="text-sm font-normal text-gray-400">({{ mempool.length }} pending)</span>
+                            </h3>
+                            <div class="space-y-2 max-h-64 overflow-y-auto">
+                                <div v-if="mempool.length === 0" class="text-gray-400 text-center py-4">
+                                    No pending transactions
+                                </div>
+                                <div v-for="tx in mempool" :key="tx.id" 
+                                     class="bg-gray-700 rounded p-3 text-sm">
+                                    <p class="font-mono">{{ tx.id.substring(0, 16) }}...</p>
+                                    <p class="text-green-400">{{ tx.value_total }} coins</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Mining Tab -->
+                <div v-if="activeTab === 'mining'">
+                    <h2 class="text-xl font-bold mb-4">Mining Control</h2>
+                    
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <div>
+                            <h3 class="text-lg font-bold mb-3">Mine Block</h3>
+                            <div class="space-y-4">
+                                <div>
+                                    <label class="block text-sm font-medium mb-1">Miner Address</label>
+                                    <select v-model="miningForm.address" class="w-full bg-gray-700 rounded-lg px-3 py-2">
+                                        <option value="">Select miner...</option>
+                                        <option v-for="wallet in wallets" :key="wallet.address" :value="wallet.address">
+                                            {{ wallet.address }}
+                                        </option>
+                                    </select>
+                                </div>
+                                <button @click="startMining" :disabled="!miningForm.address || mining"
+                                        class="w-full bg-orange-600 hover:bg-orange-700 disabled:bg-gray-600 py-2 rounded-lg">
+                                    <i :class="mining ? 'fas fa-spinner fa-spin' : 'fas fa-pickaxe'"></i>
+                                    {{ mining ? 'Mining...' : 'Start Mining' }}
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div>
+                            <h3 class="text-lg font-bold mb-3">Mining Stats</h3>
+                            <div class="bg-gray-700 rounded-lg p-4 space-y-2">
+                                <p><strong>Pending Transactions:</strong> {{ info.mempool_size }}</p>
+                                <p><strong>Current Difficulty:</strong> {{ info.difficulty }}</p>
+                                <p><strong>Estimated Reward:</strong> 10 coins + fees</p>
+                                <p><strong>Status:</strong> 
+                                    <span :class="mining ? 'text-orange-400' : 'text-gray-400'">
+                                        {{ mining ? 'Mining...' : 'Idle' }}
+                                    </span>
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Blocks Tab -->
+                <div v-if="activeTab === 'blocks'">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-xl font-bold">Block Explorer</h2>
+                        <button @click="loadBlocks" class="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg">
+                            <i class="fas fa-sync"></i> Refresh
+                        </button>
+                    </div>
+                    
+                    <div class="space-y-3">
+                        <div v-for="block in blocks" :key="block.hash" 
+                             class="bg-gray-700 rounded-lg p-4">
+                            <div class="flex justify-between items-start mb-2">
+                                <h3 class="font-bold">Block #{{ block.height }}</h3>
+                                <span class="text-sm text-gray-400">{{ block.timestamp_str }}</span>
+                            </div>
+                            <p class="font-mono text-sm mb-2">{{ block.hash }}</p>
+                            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                                <div><strong>Height:</strong> {{ block.height }}</div>
+                                <div><strong>Difficulty:</strong> {{ block.difficulty }}</div>
+                                <div><strong>Nonce:</strong> {{ block.nonce }}</div>
+                                <div><strong>TXs:</strong> {{ block.transactions.length }}</div>
+                            </div>
+                            <div class="mt-3 flex space-x-2">
+                                <button @click="simulateTamper(block.hash, 'transaction')" 
+                                        class="bg-red-600 hover:bg-red-700 px-3 py-1 rounded text-sm">
+                                    <i class="fas fa-bug"></i> Tamper Test
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Network Tab -->
+                <div v-if="activeTab === 'network'">
+                    <h2 class="text-xl font-bold mb-4">Network Management</h2>
+                    
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <div>
+                            <h3 class="text-lg font-bold mb-3">Start Network Node</h3>
+                            <div class="space-y-4">
+                                <div>
+                                    <label class="block text-sm font-medium mb-1">Port</label>
+                                    <input v-model="networkForm.port" type="number" 
+                                           class="w-full bg-gray-700 rounded-lg px-3 py-2" 
+                                           placeholder="3000">
+                                </div>
+                                <button @click="startNetwork" :disabled="networkRunning"
+                                        class="w-full bg-purple-600 hover:bg-purple-700 disabled:bg-gray-600 py-2 rounded-lg">
+                                    <i :class="networkRunning ? 'fas fa-wifi text-green-400' : 'fas fa-network-wired'"></i>
+                                    {{ networkRunning ? 'Network Running' : 'Start Network' }}
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div>
+                            <h3 class="text-lg font-bold mb-3">Network Status</h3>
+                            <div class="bg-gray-700 rounded-lg p-4 space-y-2">
+                                <p><strong>Status:</strong> 
+                                    <span :class="networkRunning ? 'text-green-400' : 'text-gray-400'">
+                                        {{ networkRunning ? 'Running' : 'Stopped' }}
+                                    </span>
+                                </p>
+                                <p><strong>Port:</strong> {{ networkForm.port }}</p>
+                                <p><strong>Peers:</strong> 0</p>
+                                <p><strong>Protocol:</strong> WebSocket</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- Notifications -->
+        <div class="fixed bottom-4 right-4 space-y-2">
+            <div v-for="notification in notifications" :key="notification.id"
+                 :class="['px-4 py-3 rounded-lg shadow-lg transition-all duration-300', 
+                         notification.type === 'success' ? 'bg-green-600' : 
+                         notification.type === 'error' ? 'bg-red-600' : 'bg-blue-600']">
+                <i :class="notification.type === 'success' ? 'fas fa-check-circle' : 
+                          notification.type === 'error' ? 'fas fa-times-circle' : 'fas fa-info-circle'"></i>
+                {{ notification.message }}
+            </div>
+        </div>
+    </div>
+
+    <script>
+    const { createApp } = Vue;
+
+    createApp({
+        data() {
+            return {
+                socket: null,
+                activeTab: 'dashboard',
+                info: {},
+                wallets: [],
+                mempool: [],
+                blocks: [],
+                notifications: [],
+                selectedWallet: '',
+                mining: false,
+                networkRunning: false,
+                tabs: [
+                    { id: 'dashboard', name: 'Dashboard', icon: 'fas fa-chart-line' },
+                    { id: 'wallets', name: 'Wallets', icon: 'fas fa-wallet' },
+                    { id: 'transactions', name: 'Transactions', icon: 'fas fa-exchange-alt' },
+                    { id: 'mining', name: 'Mining', icon: 'fas fa-pickaxe' },
+                    { id: 'blocks', name: 'Blocks', icon: 'fas fa-cubes' },
+                    { id: 'network', name: 'Network', icon: 'fas fa-network-wired' }
+                ],
+                txForm: {
+                    from: '',
+                    to: '',
+                    amount: ''
+                },
+                miningForm: {
+                    address: ''
+                },
+                networkForm: {
+                    port: 3000
+                }
+            }
+        },
+        
+        async mounted() {
+            this.initSocket();
+            await this.loadData();
+            setInterval(this.loadData, 5000); // Auto refresh every 5 seconds
+        },
+        
+        methods: {
+            initSocket() {
+                this.socket = io();
+                
+                this.socket.on('connect', () => {
+                    this.showNotification('Connected to blockchain server', 'success');
+                });
+                
+                this.socket.on('wallet_created', (data) => {
+                    this.showNotification(`Wallet created: ${data.address}`, 'success');
+                    this.loadWallets();
+                });
+                
+                this.socket.on('blockchain_created', () => {
+                    this.showNotification('Blockchain initialized successfully!', 'success');
+                    this.loadData();
+                });
+                
+                this.socket.on('transaction_added', (data) => {
+                    this.showNotification(`Transaction added: ${data.amount} coins`, 'success');
+                    this.loadMempool();
+                });
+                
+                this.socket.on('block_mined', (data) => {
+                    this.mining = false;
+                    this.showNotification(`Block #${data.height} mined successfully!`, 'success');
+                    this.loadData();
+                });
+                
+                this.socket.on('network_started', (data) => {
+                    this.networkRunning = true;
+                    this.showNotification(`Network started on port ${data.port}`, 'success');
+                });
+                
+                this.socket.on('tampering_simulated', (data) => {
+                    this.showNotification(`Tampering test: ${data.tampered_valid ? 'Failed to detect' : 'Successfully detected'}`, 
+                                        data.tampered_valid ? 'error' : 'success');
+                });
+            },
+            
+            async loadData() {
+                await Promise.all([
+                    this.loadInfo(),
+                    this.loadWallets(),
+                    this.loadMempool()
+                ]);
+            },
+            
+            async loadInfo() {
+                try {
+                    const response = await fetch('/api/blockchain/info');
+                    this.info = await response.json();
+                } catch (error) {
+                    console.error('Failed to load blockchain info:', error);
+                }
+            },
+            
+            async loadWallets() {
+                try {
+                    const response = await fetch('/api/wallets');
+                    this.wallets = await response.json();
+                } catch (error) {
+                    console.error('Failed to load wallets:', error);
+                }
+            },
+            
+            async loadMempool() {
+                try {
+                    const response = await fetch('/api/mempool');
+                    this.mempool = await response.json();
+                } catch (error) {
+                    console.error('Failed to load mempool:', error);
+                }
+            },
+            
+            async loadBlocks() {
+                try {
+                    const response = await fetch('/api/blockchain/blocks');
+                    this.blocks = await response.json();
+                } catch (error) {
+                    console.error('Failed to load blocks:', error);
+                }
+            },
+            
+            async createWallet() {
+                try {
+                    const response = await fetch('/api/wallet/create', { method: 'POST' });
+                    const data = await response.json();
+                    if (data.success) {
+                        this.selectedWallet = data.address;
+                    }
+                } catch (error) {
+                    this.showNotification('Failed to create wallet', 'error');
+                }
+            },
+            
+            async initBlockchain() {
+                if (!this.selectedWallet) {
+                    this.showNotification('Please select a wallet first', 'error');
+                    return;
+                }
+                
+                try {
+                    const response = await fetch('/api/blockchain/create', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ address: this.selectedWallet })
+                    });
+                    
+                    const data = await response.json();
+                    if (!data.success) {
+                        this.showNotification(data.error, 'error');
+                    }
+                } catch (error) {
+                    this.showNotification('Failed to initialize blockchain', 'error');
+                }
+            },
+            
+            async sendTransaction() {
+                if (!this.txForm.from || !this.txForm.to || !this.txForm.amount) {
+                    this.showNotification('Please fill all fields', 'error');
+                    return;
+                }
+                
+                try {
+                    const response = await fetch('/api/transaction/add', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            from: this.txForm.from,
+                            to: this.txForm.to,
+                            amount: parseInt(this.txForm.amount)
+                        })
+                    });
+                    
+                    const data = await response.json();
+                    if (data.success) {
+                        this.txForm = { from: '', to: '', amount: '' };
+                    } else {
+                        this.showNotification(data.error, 'error');
+                    }
+                } catch (error) {
+                    this.showNotification('Failed to send transaction', 'error');
+                }
+            },
+            
+            async startMining() {
+                if (!this.miningForm.address) {
+                    this.showNotification('Please select miner address', 'error');
+                    return;
+                }
+                
+                this.mining = true;
+                try {
+                    const response = await fetch('/api/block/mine', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ address: this.miningForm.address })
+                    });
+                    
+                    const data = await response.json();
+                    if (!data.success) {
+                        this.mining = false;
+                        this.showNotification(data.error, 'error');
+                    }
+                } catch (error) {
+                    this.mining = false;
+                    this.showNotification('Failed to start mining', 'error');
+                }
+            },
+            
+            async validateChain() {
+                try {
+                    const response = await fetch('/api/blockchain/validate');
+                    const data = await response.json();
+                    
+                    if (data.valid) {
+                        this.showNotification('Blockchain is valid!', 'success');
+                    } else {
+                        this.showNotification(`Blockchain validation failed: ${data.errors.length} errors`, 'error');
+                    }
+                } catch (error) {
+                    this.showNotification('Failed to validate blockchain', 'error');
+                }
+            },
+            
+            async simulateTamper(blockHash, type) {
+                try {
+                    const response = await fetch('/api/tamper', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ 
+                            block_hash: blockHash, 
+                            tamper_type: type 
+                        })
+                    });
+                    
+                    const data = await response.json();
+                    // Notification is handled by socket event
+                } catch (error) {
+                    this.showNotification('Failed to simulate tampering', 'error');
+                }
+            },
+            
+            async startNetwork() {
+                try {
+                    const response = await fetch('/api/network/start', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ port: this.networkForm.port })
+                    });
+                    
+                    const data = await response.json();
+                    if (!data.success) {
+                        this.showNotification(data.error, 'error');
+                    }
+                } catch (error) {
+                    this.showNotification('Failed to start network', 'error');
+                }
+            },
+            
+            selectWallet(address) {
+                this.selectedWallet = address;
+                this.showNotification(`Selected wallet: ${address}`, 'info');
+            },
+            
+            refreshData() {
+                this.loadData();
+                this.showNotification('Data refreshed', 'info');
+            },
+            
+            showNotification(message, type = 'info') {
+                const id = Date.now();
+                this.notifications.push({ id, message, type });
+                
+                setTimeout(() => {
+                    this.notifications = this.notifications.filter(n => n.id !== id);
+                }, 5000);
+            }
+        }
+    }).mount('#app');
+    </script>
+</body>
+</html>
